@@ -11,6 +11,7 @@ from time import sleep
 import timeit
 
 import os
+import re
 
 import matplotlib.pyplot as plt
 
@@ -26,9 +27,9 @@ class SingleSwitchTopo(Topo):
         server = self.addHost('server')
         dns = self.addHost('dns')
 
-        bw = 50
+        bw = 3
         delay = '23ms'
-        loss = 1
+        loss = 0
         self.addLink(host, switch,bw=bw, delay=delay, loss=loss, use_htb=True)
         self.addLink(server, switch,bw=bw, delay=delay, loss=loss, use_htb=True)
         self.addLink(dns, switch,bw=bw, delay=delay, loss=loss, use_htb=True)
@@ -46,8 +47,8 @@ def printLatencyStats():
 
 def write_plot_cdf(output, savepath):
     x = sorted(output)
-    y = [float(i) / len(x) for i in enumerate(x)]
-
+    y = [float(i) / len(x) for i, _ in enumerate(x)]
+    print x,y
     plt.plot(x,y)
     plt.savefig(savepath)
 
@@ -57,9 +58,10 @@ def write_results(output):
         os.makedirs('results')
 
     result_name = "run_%i" % int(time.time())
+    result_path = os.path.join("results", result_name)
     with open(os.path.join("results", result_name), 'w') as out_f:
-        out_f.write("\n".join(output))
-    return result_name
+        out_f.write("\n".join([str(o) for o in output]))
+    return result_path
 
 
     
@@ -81,21 +83,20 @@ def perfTest():
     sleep(0.5) # enough for the server to start-up
 
     output = []
-    for t in range(30):            
-        print "Starting to time wget"
+    for t in range(40):            
         result = host.cmd('perf stat wget --quiet %s' % server.IP())
-        print result
+        line_match = re.search("[\d. ]+seconds time elapsed", result).group()
+        secs = float(re.search("\d+.\d+", line_match).group())
+        print "Round done"
+        output += [secs]
+        print secs
 
     result_name = write_results(output)
-    write_results(output, result_name + ".png")
+    # write_plot_cdf(output, result_name + ".png")
     # end_seconds = result.index("seconds time elapsed")
     # start_seconds = result[:end_seconds].rindex("   ")
     # print "Extracted time:", float(result[start_seconds:end_seconds])
-    import re
-    line_match = re.search("[\d. ]+seconds time elapsed", result).group()
-    secs = float(re.search("\d+.\d+", line_match).group())
-
-    print "Extracted time", secs
+    print "Done, results written to %s" % result_name
 
 
     # print result
@@ -104,10 +105,8 @@ def perfTest():
     # print host.cmd('wget --quiet %s' % server.IP())
 
 
-
-
     net.stop()
 
 if __name__ == '__main__':
-    setLogLevel('info')
+    setLogLevel('info')   
     perfTest()
