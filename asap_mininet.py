@@ -60,7 +60,7 @@ class ASAPTopology(Topo):
         dns = self.addHost('dns')
         server = self.addHost('server')
         bw = 65.6
-        delay = "87ms"
+        delay = "40ms"
         self.addLink(client, central_switch, bw=bw, delay=delay, max_queue_size=1000)
 
         self.addLink(dns, central_switch, bw=bw, delay=delay, max_queue_size=1000)
