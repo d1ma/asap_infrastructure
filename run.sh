@@ -22,8 +22,8 @@ exptid=`date +%b%d-%H:%M`
 for run in 1; do
 
     python simpleperf.py --bw-host 3 \
-        --delay-host 80
-        --delay-dns 40 
+       --delay-host 80 \
+        --delay-dns 40 \
         --delay-server 0
        
 done

@@ -171,6 +171,11 @@ def asapTest(net):
     print "Done, results written to %s" % result_name
 
 def main():
+    global bw, delay_host, delay_dns, delay_server
+    bw = args.bw
+    delay_host = args.delay_host
+    delay_dns = args.delay_dns
+    delay_server = args.delay_server
     topo = SingleSwitchTopo()
     net = Mininet(topo=topo,
                   host=CPULimitedHost, link=TCLink,
@@ -186,9 +191,4 @@ def main():
 
 if __name__ == '__main__':
     setLogLevel('info')   
-    global bw, delay_host, delay_dns, delay_server
-    bw = args.bw
-    delay_host = args.delay_host
-    delay_dns = args.delay_dns
-    delay_server = args.delay_server
     main()
