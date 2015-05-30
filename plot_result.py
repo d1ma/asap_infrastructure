@@ -12,7 +12,6 @@ def plot_cdf(result_path, xlim=None):
     print x,y
 
 
-
     axes = plt.subplot()
     axes.plot(x,y, 'r')
     #axes.set_xlim(xlim)
