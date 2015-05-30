@@ -15,6 +15,9 @@ import re
 
 import matplotlib.pyplot as plt
 
+bw = 3
+delay = '23ms'
+loss = 0
 
 class SingleSwitchTopo(Topo):
     "Single switch connected to n hosts."
@@ -25,9 +28,6 @@ class SingleSwitchTopo(Topo):
         server = self.addHost('server')
         dns = self.addHost('dns')
 
-        bw = 3
-        delay = '23ms'
-        loss = 0
         self.addLink(host, switch, bw=bw, delay='80ms', loss=loss, use_htb=True)
         self.addLink(server, switch, bw=bw, delay='0ms', loss=loss, use_htb=True)
         self.addLink(dns, switch, bw=bw, delay='0ms', loss=loss, use_htb=True)
@@ -44,13 +44,6 @@ def printLatencyStats(net):
     print "dns <-> server", getLatency(dns, server)
     print "dns <-> host", getLatency(dns, host)
 
-def write_plot_cdf(output, savepath):
-    x = sorted(output)
-    y = [float(i) / len(x) for i, _ in enumerate(x)]
-    print x,y
-    plt.plot(x,y)
-    plt.savefig(savepath)
-
 def write_results(output, file_prefix):
     if not os.path.exists('results'):
         os.makedirs('results')
@@ -60,6 +53,23 @@ def write_results(output, file_prefix):
     with open(os.path.join("results", result_name), 'w') as out_f:
         out_f.write("\n".join([str(o) for o in output]))
     return result_path
+
+def rttTest(net):
+    "Create network and run simple performance test"
+    host, server, dns = net.getNodeByName('h', 'server', 'dns')
+    print "Starting python server"
+    server.cmd("python -m SimpleHTTPServer 80 &")
+    sleep(0.5) # enough for the server to start-up
+
+    output = []
+    for t in range(20):            
+        result = get_latency(host, server)
+        output += [secs]
+        print secs
+
+    result_name = write_results(output, "rtt")
+    print "Done, results written to %s" % result_name
+
 
 def perfTest(net):
     "Create network and run simple performance test"
@@ -73,7 +83,6 @@ def perfTest(net):
         result = host.cmd('perf stat curl -s %s 1>/dev/null' % server.IP())
         line_match = re.search("[\d. ]+seconds time elapsed", result).group()
         secs = float(re.search("\d+.\d+", line_match).group())
-        print "Round done"
         output += [secs]
         print secs
 
