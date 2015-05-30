@@ -5,18 +5,16 @@ from mininet.link import TCLink
 from mininet.util import dumpNodeConnections
 from mininet.log import setLogLevel
 from mininet.node import OVSController
+from mininet.cli import CLI
+
 import time
 from time import sleep
-
 import timeit
-
 import os
 import re
 
 import matplotlib.pyplot as plt
 
-
-dns=host=server=None
 
 class SingleSwitchTopo(Topo):
     "Single switch connected to n hosts."
@@ -30,16 +28,17 @@ class SingleSwitchTopo(Topo):
         bw = 3
         delay = '23ms'
         loss = 0
-        self.addLink(host, switch,bw=bw, delay=delay, loss=loss, use_htb=True)
-        self.addLink(server, switch,bw=bw, delay=delay, loss=loss, use_htb=True)
-        self.addLink(dns, switch,bw=bw, delay=delay, loss=loss, use_htb=True)
+        self.addLink(host, switch, bw=bw, delay='80ms', loss=loss, use_htb=True)
+        self.addLink(server, switch, bw=bw, delay='0ms', loss=loss, use_htb=True)
+        self.addLink(dns, switch, bw=bw, delay='0ms', loss=loss, use_htb=True)
 
 def getLatency(sender, receiver):
     latency = float(sender.cmd("ping -c 1 %s | tail -1 | awk -F '/' '{print $5}'" % receiver.IP()))
     return latency
 
 
-def printLatencyStats():
+def printLatencyStats(net):
+    host, server, dns = net.getNodeByName('h', 'server', 'dns')
     print ("#### [ Latency stats ] ####")
     print "host <-> server", getLatency(host, server)
     print "dns <-> server", getLatency(dns, server)
@@ -52,61 +51,85 @@ def write_plot_cdf(output, savepath):
     plt.plot(x,y)
     plt.savefig(savepath)
 
-def write_results(output):
-
+def write_results(output, file_prefix):
     if not os.path.exists('results'):
         os.makedirs('results')
 
-    result_name = "run_%i" % int(time.time())
+    result_name = "%s_%i.txt" % (file_prefix, int(time.time()))
     result_path = os.path.join("results", result_name)
     with open(os.path.join("results", result_name), 'w') as out_f:
         out_f.write("\n".join([str(o) for o in output]))
     return result_path
 
-
-    
-def perfTest():
+def perfTest(net):
     "Create network and run simple performance test"
-    topo = SingleSwitchTopo( )
-    net = Mininet( topo=topo,
-                   host=CPULimitedHost, link=TCLink,
-                   autoStaticArp=True, controller=OVSController )
-    net.start()
-    # print "Dumping host connections"
-    # dumpNodeConnections(net.hosts)
-    global host, server, dns
-
     host, server, dns = net.getNodeByName('h', 'server', 'dns')
-    # net.iperf( ( h1, h4 ), l4Type='UDP' )
     print "Starting python server"
     server.cmd("python -m SimpleHTTPServer 80 &")
     sleep(0.5) # enough for the server to start-up
 
     output = []
-    for t in range(40):            
-        result = host.cmd('perf stat wget --quiet %s' % server.IP())
+    for t in range(20):            
+        result = host.cmd('perf stat curl -s %s 1>/dev/null' % server.IP())
         line_match = re.search("[\d. ]+seconds time elapsed", result).group()
         secs = float(re.search("\d+.\d+", line_match).group())
         print "Round done"
         output += [secs]
         print secs
 
-    result_name = write_results(output)
-    # write_plot_cdf(output, result_name + ".png")
-    # end_seconds = result.index("seconds time elapsed")
-    # start_seconds = result[:end_seconds].rindex("   ")
-    # print "Extracted time:", float(result[start_seconds:end_seconds])
+    result_name = write_results(output, "perf")
     print "Done, results written to %s" % result_name
 
+def udtTest(net):
+    host, server, dns = net.getNodeByName('h', 'server', 'dns')
+    print "Starting server"
+    server.cmd("~/asap/appserver --asap=0 &")
+    dns.cmd("cd ~/asap/userspace/adns; sudo ./build_dns.bash %s" % server.IP())
 
-    # print result
+    output = []
+    print "go"
+    for t in range(20):            
+        result = host.cmd('perf stat ~/asap/appclient --dns-ip=%s --asap=0' % dns.IP())
+        line_match = re.search("[\d. ]+seconds time elapsed", result).group()
+        secs = float(re.search("\d+.\d+", line_match).group())
+        output += [secs]
+        print secs
 
+    result_name = write_results(output, "udt")
+    print "Done, results written to %s" % result_name
 
-    # print host.cmd('wget --quiet %s' % server.IP())
+def asapTest(net):
+    host, server, dns = net.getNodeByName('h', 'server', 'dns')
+    print "Starting server"
+    server.cmd("~/asap/appserver --asap=1 &")
+    dns.cmd("cd ~/asap/userspace/adns; sudo ./build_dns.bash %s" % server.IP())
 
+    output = []
+    print "go"
+    for t in range(20):            
+        result = host.cmd('perf stat ~/asap/appclient --dns-ip=%s --asap=1' % dns.IP())
+        line_match = re.search("[\d. ]+seconds time elapsed", result).group()
+        secs = float(re.search("\d+.\d+", line_match).group())
+        output += [secs]
+        print secs
 
+    result_name = write_results(output, "asap")
+    print "Done, results written to %s" % result_name
+
+def main():
+    topo = SingleSwitchTopo()
+    net = Mininet(topo=topo,
+                  host=CPULimitedHost, link=TCLink,
+                  autoStaticArp=True, controller=OVSController)
+    net.start()
+    # print "Dumping host connections"
+    # dumpNodeConnections(net.hosts)
+    #CLI(net)
+    perfTest(net)
+    udtTest(net)
+    asapTest(net)
     net.stop()
 
 if __name__ == '__main__':
     setLogLevel('info')   
-    perfTest()
+    main()
