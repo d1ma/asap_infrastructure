@@ -15,8 +15,8 @@ def plot_cdf(result_path, xlim=None):
 
     axes = plt.subplot()
     axes.plot(x,y, 'r')
-    axes.set_xlim(xlim)
-    plt.savefig(result_path + ".png")
+    #axes.set_xlim(xlim)
+    plt.savefig(result_path.split(".")[0] + ".png")
 
 
 if __name__ == "__main__":
